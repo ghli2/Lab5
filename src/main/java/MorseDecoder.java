@@ -85,6 +85,7 @@ public class MorseDecoder {
      */
     private static String powerToDotDash(final double[] powerMeasurements) {
         String a = "";
+        //changes numbers to "." (sound) and " " (no sound)
         for (double x : powerMeasurements)
             a += x > POWER_THRESHOLD ? "." : " ";
             //finds the duration of . in morse code
