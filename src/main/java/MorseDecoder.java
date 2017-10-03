@@ -57,6 +57,7 @@ public class MorseDecoder {
         double[] sampleBuffer = new double[BIN_SIZE * inputFile.getNumChannels()];
         for (int binIndex = 0; binIndex < totalBinCount; binIndex++) {
             inputFile.readFrames(sampleBuffer, BIN_SIZE);
+                                        //sums the magnitudes of data in sampleBuffer
             returnBuffer[binIndex] = Arrays.stream(sampleBuffer).reduce( 0, (a, b) -> Math.abs(a) + Math.abs(b));
             // Get the right number of samples from the inputFile
             // Sum all the samples together and store them in the returnBuffer
@@ -86,11 +87,17 @@ public class MorseDecoder {
         String a = "";
         for (double x : powerMeasurements)
             a += x > POWER_THRESHOLD ? "." : " ";
+            //finds the duration of . in morse code
         int c = Arrays.stream(a.split(" ")).reduce(new String(new char[50]).replaceAll("\0","."),(e,d) -> e.length() < d.length() && e.length() > 0 ? e : d).length();
         System.out.println(c);
+        //converts from silence-not-silence form to morese code form
+        //handles -
         a = a.replaceAll("\\.{"+(3*c - 3)+","+(3*c+3)+"}","-");
+        //handles .
         a = a.replaceAll("\\.{"+(c-1)+","+(c+1)+"}",".");
+        //handles spaces between chars
         a = a.replaceAll(" {"+(3*c)+","+(10*c)+"}"," ");
+        //handles single chars
         a = a.replaceAll(" {"+c+","+(2*c)+"}","");
         return a;
     }
