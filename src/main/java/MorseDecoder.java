@@ -1,5 +1,8 @@
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Array;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.InvalidParameterException;
@@ -9,6 +12,9 @@ import java.util.Scanner;
 import java.util.ArrayList;
 import java.util.stream.*;
 import java.util.Arrays;
+import java.util.List;
+import javax.swing.*;
+import java.awt.*;
 
 /**
  * Decode Morse code from a WAV file.
@@ -88,19 +94,71 @@ public class MorseDecoder {
         //changes numbers to "." (sound) and " " (no sound)
         for (double x : powerMeasurements)
             a += x > POWER_THRESHOLD ? "." : " ";
+        System.out.println(a);
             //finds the duration of . in morse code
         int c = Arrays.stream(a.split(" ")).reduce(new String(new char[50]).replaceAll("\0","."),(e,d) -> e.length() < d.length() && e.length() > 0 ? e : d).length();
-        System.out.println(c);
         //converts from silence-not-silence form to morese code form
         //handles -
         a = a.replaceAll("\\.{"+(3*c - 3)+","+(3*c+3)+"}","-");
         //handles .
         a = a.replaceAll("\\.{"+(c-1)+","+(c+1)+"}",".");
         //handles spaces between chars
-        a = a.replaceAll(" {"+(3*c)+","+(10*c)+"}"," ");
+        a = a.replaceAll(" {"+(3*c)+",}"," ");
         //handles single chars
         a = a.replaceAll(" {"+c+","+(2*c)+"}","");
+
         return a;
+    }
+    private final static double UNIT = .06;
+    private final static double DOT_DUR = UNIT;
+    private final static double DASH_DUR = 3*UNIT;
+    private final static double INTERELEM = 1*UNIT;
+    private final static double INTRAELEM = 4*UNIT;
+    private final static int SAMPLE_RATE = 44100;
+    private static Map<String, Double> EASY_LOOKUP = new HashMap<String, Double>() {
+        {
+            this.put(".",DOT_DUR);
+            this.put("-",DASH_DUR);
+        }
+    };
+    private static Map<String, Double[]> SOUND_LOOKUP = new HashMap<String, Double[]>(){
+        {
+            ArrayList<Double> buf = new ArrayList<>();
+            BigDecimal d;
+            for (Entry<String, Double> e : EASY_LOOKUP.entrySet()) {
+                buf.clear();
+                for (int i = 0; i < SAMPLE_RATE*e.getValue(); ++i){
+                    d = new BigDecimal(Math.sin(2*Math.PI*FREQ*i/SAMPLE_RATE)).setScale(0, RoundingMode.UP);
+                    buf.add(d.doubleValue());
+                }
+                this.put(e.getKey(),(Double[]) buf.toArray(new Double[0]));
+            }
+            Double[] kek = new Double[(int)(SAMPLE_RATE*INTRAELEM)];
+            Arrays.fill(kek,new Double(0));
+            this.put(" ", kek);
+            kek = new Double[(int)(SAMPLE_RATE*INTERELEM)];
+            Arrays.fill(kek,new Double(0));
+            this.put("", kek);
+
+        }
+    };
+    private final static int FREQ = 500;
+    private static void dotDashToWave (final String s) throws IOException, WavFileException{
+        double duration = s.replaceAll("[^-]","").length()*DASH_DUR +
+                s.replaceAll("[^\\.]","").length()*DOT_DUR +
+                (s.replaceAll(" ","").length()+2)*INTERELEM +
+                s.replaceAll("[^ ]","").length()*INTRAELEM;
+        long frames = (long) (SAMPLE_RATE * duration);
+        WavFile file = WavFile.newWavFile(new File("kek.wav"), 1, frames, 16, SAMPLE_RATE);
+        String[] parts = s.replaceAll(" $","").split("");
+        file.writeFrames(Arrays.stream(SOUND_LOOKUP.get("")).mapToDouble(Double::doubleValue).toArray(),SOUND_LOOKUP.get("").length);
+        for (String p : parts) {
+            file.writeFrames(Arrays.stream(SOUND_LOOKUP.get(p)).mapToDouble(Double::doubleValue).toArray(),SOUND_LOOKUP.get(p).length);
+            if (!p.equals(" ")) {
+                file.writeFrames(Arrays.stream(SOUND_LOOKUP.get("")).mapToDouble(Double::doubleValue).toArray(),SOUND_LOOKUP.get("").length);
+            }
+        }
+        file.writeFrames(Arrays.stream(SOUND_LOOKUP.get("")).mapToDouble(Double::doubleValue).toArray(),SOUND_LOOKUP.get("").length);
     }
 
     /**
@@ -150,7 +208,12 @@ public class MorseDecoder {
                     put(".-.-.-", ".");
                 }
             };
-
+    private static final Map<String,String> ALPHA_TO_MORSE = new HashMap<String,String>()
+    {{
+            for (Map.Entry<String, String> x : MORSE_TO_ALPHA.entrySet()) {
+                this.put(x.getValue(), x.getKey());
+            }
+    }};
     /**
      * Convert a Morse code string to alphanumeric characters using the mapping above.
      * <p>
@@ -174,6 +237,13 @@ public class MorseDecoder {
             }
         }
         return returnString;
+    }
+    private static String alphaToDotDash(final String alpha) {
+        String res = "";
+        for (String x : alpha.split("")) {
+            res += ALPHA_TO_MORSE.getOrDefault(x,"") + " ";
+        }
+        return res.replaceAll(" $","");
     }
 
     /**
@@ -205,6 +275,34 @@ public class MorseDecoder {
      *
      * @param unused unused input arguments
      */
+    public static void displayWaveform(WavFile file) throws Exception{
+        int fac = 2;
+        int len = (file.getNumFrames() > (long) Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) file.getNumFrames());
+        double[] amps = new double[len];
+        file.readFrames(amps,len);
+
+        int[] intTs = new int[len];
+        for (int i = 0; i < len; ++i) {
+            intTs[i] = (int) i/fac;//frame.getWidth()*i/len;
+        }
+
+        JFrame frame = new JFrame();
+        frame.setSize(3000,1500);
+        frame.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+
+        int[] intAmps = Arrays.stream(amps).mapToInt(a -> (int)(frame.getHeight()/2 - 25 + a*frame.getHeight()/2)).toArray();
+
+        JComponent comp = new JComponent() {
+            protected void paintComponent(Graphics g){
+                g.drawPolyline(intTs,intAmps,len);
+            }
+        };
+        comp.setPreferredSize(new Dimension(len/fac,1000));
+        JScrollPane p = new JScrollPane(comp);
+        p.setPreferredSize(frame.getSize());
+        frame.add(p);
+        frame.setVisible(true);
+    }
     public static void main(final String[] unused) {
 
         String inputPrompt = String.format("Enter the WAV filename (in src/main/resources):");
@@ -248,14 +346,22 @@ public class MorseDecoder {
                 inputFilePath = new URI(inputFilePath).getPath();
                 File inputFile = new File(inputFilePath);
                 inputWavFile = WavFile.openWavFile(inputFile);
+                displayWaveform(inputWavFile);
                 if (inputWavFile.getNumChannels() != 1) {
                     throw new InvalidParameterException("We only process files with one channel.");
                 }
+
                 System.out.println(morseWavToString(inputWavFile));
                 break;
-            } catch (WavFileException | IOException | URISyntaxException e) {
+            } catch (Exception e) {
                 throw new InvalidParameterException("Bad file path" + e);
             }
+        }
+        try {
+
+            dotDashToWave(alphaToDotDash("fuck off"));
+        } catch (Exception e){
+            System.exit(1);
         }
         lineScanner.close();
     }
