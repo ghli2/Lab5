@@ -265,16 +265,7 @@ public class MorseDecoder {
         return dotDash + "\n" + outputString;
     }
 
-    /**
-     * Main method for testing.
-     * <p>
-     * Takes an input file from the user and tries to print out the Morse code by processing the
-     * file using your code above. You should feel free to modify this, as well as to insert
-     * additional print statements above to help determine what is going on... or what is going
-     * wrong.
-     *
-     * @param unused unused input arguments
-     */
+
     public static void displayWaveform(WavFile file) throws Exception{
         int fac = 2;
         int len = (file.getNumFrames() > (long) Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) file.getNumFrames());
@@ -303,6 +294,16 @@ public class MorseDecoder {
         frame.add(p);
         frame.setVisible(true);
     }
+    /**
+     * Main method for testing.
+     * <p>
+     * Takes an input file from the user and tries to print out the Morse code by processing the
+     * file using your code above. You should feel free to modify this, as well as to insert
+     * additional print statements above to help determine what is going on... or what is going
+     * wrong.
+     *
+     * @param unused unused input arguments
+     */
     public static void main(final String[] unused) {
 
         String inputPrompt = String.format("Enter the WAV filename (in src/main/resources):");
